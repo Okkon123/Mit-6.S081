@@ -44,7 +44,7 @@ kvmmake(void)
   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
   // map kernel stacks
-  proc_mapstacks(kpgtbl);
+  // proc_mapstacks(kpgtbl);
   
   return kpgtbl;
 }
@@ -54,6 +54,11 @@ void
 kvminit(void)
 {
   kernel_pagetable = kvmmake();
+}
+
+pagetable_t
+getKernelPgtbl() {
+  return kernel_pagetable;
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -431,4 +436,62 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+void
+vmprintHelper(pagetable_t pagetable, int level) {
+  if(level == 4) {
+    return;
+  }
+  for(int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V) {
+      uint64 child = PTE2PA(pte);
+      for(int j = 0; j < level; j++) {
+        if(j == 0) {
+          printf("..");
+        } else {
+          printf(" ..");
+        }
+      }
+      printf("%d: pte %p pa %p\n", i,  pte,  child);
+      vmprintHelper((pagetable_t) child, level + 1);
+      }
+    }
+}
+
+void
+vmprint(pagetable_t pagetable) {
+  printf("page tabel %p\n", (void*) pagetable);
+  vmprintHelper(pagetable, 1);
+}
+
+void
+kvmFreeKernelPgtbl(pagetable_t pagetable) {
+  for(int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    uint64 child = PTE2PA(pte);
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X|PTE_X)) == 0) {
+      kvmFreeKernelPgtbl((pagetable_t) child);
+      pagetable[i] = 0;
+    }
+  }
+  kfree((void*) pagetable);
+}
+
+uint64
+kvmPa(pagetable_t pagetable, uint64 va) {
+  uint64 off = va % PGSIZE;
+  pte_t *pte;
+  uint64 pa;
+
+  pte = walk(pagetable, va, 0);
+  if(pte == 0) {
+    panic("kvmpa");
+  }
+  if((*pte & PTE_V) == 0) {
+    panic("kvmpa");
+  }
+  pa = PTE2PA(*pte);
+  return pa + off;
 }
