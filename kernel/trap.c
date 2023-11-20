@@ -49,8 +49,10 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
+
+  uint64 scause = r_scause();
+
+  if(scause == 8){
     // system call
 
     if(p->killed)
@@ -67,6 +69,10 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if ((scause == 15 || scause == 13) && validCowPage(r_stval())) {
+    if (cow(r_stval()) == 0) {
+      p->killed = 1;
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -82,6 +88,64 @@ usertrap(void)
 
   usertrapret();
 }
+
+int 
+validCowPage(uint64 va) {
+  struct proc *p = myproc();
+  pte_t *pte = walk(p->pagetable, va, 0);
+  if (pte == 0) {
+    panic("validCowPage : walk");
+  }
+  uint flags = PTE_FLAGS(*pte);
+  if ((flags & PTE_COW) && (va < p->sz) && (flags & PTE_V)) {
+    return 1;
+  }
+  return 0;
+} 
+
+int 
+cow(uint64 va) {
+  pte_t *pte;
+  struct proc *p = myproc();
+  if((pte = walk(p->pagetable, va, 0)) == 0) {
+    panic("cow : walk");
+  }
+  uint64 pa = PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+  flags = flags | PTE_W;
+  flags = flags & ~PTE_COW;
+  uint64 newPa = getNewPa(pa);
+  uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0);
+  mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, newPa, flags);
+  return 1;
+}
+
+// int
+// cow(uint64 va) {
+//   pte_t *pte;
+//   struct proc *p = myproc();
+//   if((pte = walk(p->pagetable, va, 0)) == 0) {
+//     panic("cow : walk");
+//   }
+//   uint64 pa = PTE2PA(*pte);
+//   uint flags = PTE_FLAGS(*pte);
+//   flags = flags | PTE_W;
+//   flags = flags & ~PTE_COW;
+//   if(getPaRef(pa) == 1) {
+//     uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0);
+//     mappages(p->pagetable, va, PGSIZE, pa, flags);
+//   } else {
+//     char *mem = kalloc();
+//     if (mem == 0) {
+//       return 0;
+//     }
+//     memmove(mem, (char*)pa, PGSIZE);
+//     uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0);
+//     mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags);
+//     kfree((char*)PGROUNDDOWN(pa));
+//     return 1;
+//   }
+// }
 
 //
 // return to user space
