@@ -64,7 +64,7 @@ void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
 void            add_ref(uint64);
-uint64          getNewPa(uint64);
+// uint64          getNewPa(uint64);
 uint64          getPaRef(uint64);
 
 // log.c

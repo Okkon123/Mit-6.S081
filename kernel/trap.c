@@ -69,10 +69,15 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else if ((scause == 15 || scause == 13) && validCowPage(r_stval())) {
-    if (cow(r_stval()) == 0) {
-      p->killed = 1;
+  } else if (scause == 15) {
+    if (validCowPage(r_stval())) {
+      if (cow(r_stval()) == 0) {
+        p->killed = 1;
+      }
+    } else {
+      p->killed = -1;
     }
+    
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -97,7 +102,7 @@ validCowPage(uint64 va) {
     panic("validCowPage : walk");
   }
   uint flags = PTE_FLAGS(*pte);
-  if ((flags & PTE_COW) && (va < p->sz) && (flags & PTE_V)) {
+  if ((flags & PTE_COW) && (va < p->sz) && (flags & PTE_V) && (va < MAXVA)) {
     return 1;
   }
   return 0;
@@ -114,9 +119,19 @@ cow(uint64 va) {
   uint flags = PTE_FLAGS(*pte);
   flags = flags | PTE_W;
   flags = flags & ~PTE_COW;
-  uint64 newPa = getNewPa(pa);
-  uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0);
-  mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, newPa, flags);
+  *pte = *pte & ~PTE_V;
+  if (getPaRef(pa) == 1) {
+    mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, pa, flags);
+  } else {
+    char *mem = kalloc();
+    if (mem == 0) {
+      return 0;
+    }
+    kfree((void*)pa);
+    memmove(mem, (char*)pa, PGSIZE);
+    mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags);
+  }
+  
   return 1;
 }
 

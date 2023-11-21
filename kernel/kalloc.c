@@ -186,29 +186,26 @@ add_ref(uint64 pa) {
   release(&cowRef.lock);
 }
 
-uint64
-getNewPa(uint64 pa) {
-  acquire(&cowRef.lock);
-  if (cowRef.cnt[PAGE(pa)] <= 1) {
-    release(&cowRef.lock);
-    return pa;
-  } else {
-    cowRef.cnt[PAGE(pa)]--;
-    uint64 newPa = (uint64)kalloc();
-    if (newPa == 0) {
-      release(&cowRef.lock);
-      return 0;
-    }
-    memmove((void*) newPa, (void*) pa, PGSIZE);
-    release(&cowRef.lock);
-    return newPa;
-  }
-}
-
 // uint64
-// getPaRef(uint64 pa) {
+// getNewPa(uint64 pa) {
 //   acquire(&cowRef.lock);
-//   uint64 res = cowRef.cnt[PAGE(pa)];
-//   release(&cowRef.lock);
-//   return res;
+//   if (cowRef.cnt[PAGE(pa)] <= 1) {
+//     release(&cowRef.lock);
+//     return pa;
+//   } else {
+//     cowRef.cnt[PAGE(pa)]--;
+//     uint64 newPa = (uint64)kalloc();
+//     if (newPa == 0) {
+//       release(&cowRef.lock);
+//       return 0;
+//     }
+//     memmove((void*) newPa, (void*) pa, PGSIZE);
+//     release(&cowRef.lock);
+//     return newPa;
+//   }
 // }
+
+uint64
+getPaRef(uint64 pa) {
+  return cowRef.cnt[PAGE(pa)];
+}
