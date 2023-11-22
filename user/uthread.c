@@ -10,11 +10,31 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+struct ucontext {
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
 
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct ucontext ucontext;
 };
+
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
 extern void thread_switch(uint64, uint64);
@@ -59,9 +79,10 @@ thread_schedule(void)
     t = current_thread;
     current_thread = next_thread;
     /* YOUR CODE HERE
-     * Invoke thread_switch to switch from t to next_thread:
+     * Invoke thread_s  witch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    thread_switch((uint64)&t->ucontext, (uint64)&current_thread->ucontext);
   } else
     next_thread = 0;
 }
@@ -76,6 +97,8 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  t->ucontext.ra = (uint64)func;
+  t->ucontext.sp = (uint64)t->stack + STACK_SIZE;
 }
 
 void 
@@ -92,7 +115,7 @@ void
 thread_a(void)
 {
   int i;
-  printf("thread_a started\n");
+ printf("thread_a started\n");
   a_started = 1;
   while(b_started == 0 || c_started == 0)
     thread_yield();
@@ -112,7 +135,7 @@ void
 thread_b(void)
 {
   int i;
-  printf("thread_b started\n");
+ printf("thread_b started\n");
   b_started = 1;
   while(a_started == 0 || c_started == 0)
     thread_yield();
@@ -132,7 +155,7 @@ void
 thread_c(void)
 {
   int i;
-  printf("thread_c started\n");
+ printf("thread_c started\n");
   c_started = 1;
   while(a_started == 0 || b_started == 0)
     thread_yield();
