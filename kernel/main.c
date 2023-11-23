@@ -5,6 +5,7 @@
 #include "defs.h"
 
 volatile static int started = 0;
+volatile static int round = 0;
 
 // start() jumps here in supervisor mode on all CPUs.
 void
@@ -41,15 +42,20 @@ main()
 #endif
     __sync_synchronize();
     started = 1;
+    round++;
   } else {
     while(lockfree_read4((int *) &started) == 0)
       ;
     __sync_synchronize();
     printf("hart %d starting\n", cpuid());
+    kinit();
     kvminithart();    // turn on paging
     trapinithart();   // install kernel trap vector
     plicinithart();   // ask PLIC for device interrupts
+    round++;
   }
 
+  while(lockfree_read4((int *) &round) != NCPU)
+      ;
   scheduler();        
 }
