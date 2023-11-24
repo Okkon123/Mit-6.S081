@@ -110,15 +110,14 @@ struct {
 void
 kinit()
 {
-  push_off();
-  int curCpuId = cpuid();
-  pop_off();
-  initlock(&kmem[curCpuId].lock, "kmem");
-  uint64 tot_start = (uint64) PGROUNDUP((uint64) end);
-  uint64 tot_end = (uint64) PHYSTOP;
-  uint64 pa_start = tot_start + (tot_end - tot_start) * curCpuId / NCPU;
-  uint64 pa_end = tot_start + (tot_end - tot_start) * (curCpuId + 1) / NCPU;
-  freerange((void *)pa_start,(void *) pa_end);
+  for (int i = 0; i < NCPU; i++) {
+    initlock(&kmem[i].lock, "kmem");
+  }
+  // uint64 tot_start = (uint64) PGROUNDUP((uint64) end);
+  // uint64 tot_end = (uint64) PHYSTOP;
+  // uint64 pa_start = tot_start + (tot_end - tot_start) * curCpuId / NCPU;
+  // uint64 pa_end = tot_start + (tot_end - tot_start) * (curCpuId + 1) / NCPU;
+  freerange((void*) end, (void*)PHYSTOP);
 }
 
 void
